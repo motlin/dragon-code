@@ -1,7 +1,8 @@
 {
 	"$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
 	// src/pwa/sw.ts is the service worker, which scripts/service-worker-build.ts builds by path.
-	"entry": ["src/pwa/sw.ts", "scripts/*.ts"],
+	// src/game/solver.worker.ts is the solver's Web Worker, which src/game/solver.ts starts by URL.
+	"entry": ["src/pwa/sw.ts", "src/game/solver.worker.ts", "scripts/*.ts"],
 	// mise installs oxfmt-next-line; see .mise/config.toml.
 	"ignoreBinaries": ["oxfmt-next-line"],
 	"rules":
