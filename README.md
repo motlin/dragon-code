@@ -4,7 +4,7 @@ A block-coding game where you play the dragon. Knights march on your castle runn
 
 ## Layout
 
-`index.html` is the game as it came from the artifact: its markup, its stylesheet and its inline script. It saves progress, settings, variables and the level being forged in localStorage under `dc_*` keys. `src/main.ts` is the one module the build adds, and it registers the service worker. The artifact's shared gallery and high scores used the Claude artifact storage API, which is not available here, so for now the gallery says it cannot load.
+`index.html` is the game as it came from the artifact: its markup and its inline script. Its stylesheet is `src/styles/game.css`. It saves progress, settings, variables and the level being forged in localStorage under `dc_*` keys. `src/main.ts` is the one module the build adds, and it registers the service worker. The artifact's shared gallery and high scores used the Claude artifact storage API, which is not available here, so for now the gallery says it cannot load.
 
 ## Installing and playing offline
 
