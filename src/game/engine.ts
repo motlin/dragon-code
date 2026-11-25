@@ -2030,7 +2030,7 @@ function generateCandidate(
 	};
 }
 
-function generate(
+export function generate(
 	d: number,
 	seed: number,
 	maxStates = 25000,
