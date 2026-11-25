@@ -1,5 +1,5 @@
-import {sanitizeLevel} from "../shared/level.ts";
-import {db, dbInit, profileNames, withTimeout} from "./db.ts";
+import type {GalleryLevel} from "../shared/api.ts";
+import {deleteLevel, listLevels, topScores} from "./api.ts";
 import {$, el} from "./dom.ts";
 import {drawBoard} from "./draw.ts";
 import {type Level, makeState} from "./engine.ts";
@@ -10,24 +10,7 @@ import {progress} from "./store.ts";
 
 // The gallery: levels players published, to play or, for their makers, delete; and the Hall of Flames high scores.
 
-interface GalleryLevel
-{
-	id: string;
-	name: string;
-	created: number;
-	owner: string;
-	nick: string;
-	data: Level;
-}
-const str = (v: unknown, fallback = ""): string =>
-	typeof v === "string" || typeof v === "number"
-		? String(v)
-		: v === undefined || v === null
-			? fallback
-			: JSON.stringify(v);
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
-// The first name that is not empty.
-const firstName = (...names: (string | undefined)[]): string => names.find(Boolean) ?? "A mysterious dragon";
+const NO_NAME = "A mysterious dragon";
 export async function openGallery(): Promise<void>
 {
 	stopRun(true);
@@ -40,80 +23,27 @@ export async function openGallery(): Promise<void>
 	lb.innerHTML = "";
 	gs.textContent = "Loading levels...";
 	ls.textContent = "Loading scores...";
-	await dbInit;
-	const DB = db.DB;
-	if (!DB)
+	const [levels, scores] = await Promise.allSettled([listLevels(), topScores()]);
+	if (levels.status === "fulfilled")
 	{
-		gs.textContent =
-			"The shared gallery needs you to be signed in to Claude to load. You can still build and test levels in the Level Forge.";
-		ls.textContent = "Scores are not available right now.";
-		return;
-	}
-	try
-	{
-		const snap = await withTimeout(DB.collection("levels").get(), 10000);
-		const all: GalleryLevel[] = [];
-		snap.docs.forEach((d) =>
+		gs.textContent = levels.value.length ? "" : "No levels yet. Be the first to forge one!";
+		levels.value.forEach((L) =>
 		{
-			const v = d.data() ?? {};
-			const levels: unknown = v["levels"];
-			(Array.isArray(levels) ? levels : []).forEach((L: unknown) =>
-			{
-				if (!isRecord(L)) return;
-				const entry = L;
-				const s = sanitizeLevel(entry["data"] ?? {});
-				if (s && entry["id"])
-					all.push(
-						{
-							id: str(entry["id"]),
-							name: str(entry["name"], "Untitled").slice(0, 40) || "Untitled",
-							created: Number(entry["created"]) || 0,
-							owner: d.id,
-							nick: str(v["nick"]).slice(0, 24),
-							data: s,
-						},
-					);
-			});
-		});
-		all.sort((a, b) => b.created - a.created);
-		const names = await profileNames([...new Set(all.filter((a) => !a.nick).map((a) => a.owner))]);
-		gs.textContent = all.length ? "" : "No levels yet. Be the first to forge one!";
-		all.forEach((L) =>
-		{
-			galleryCard(gg, L, firstName(L.nick, names[L.owner]), L.owner === db.MYID || db.ISOWNER);
+			galleryCard(gg, L, L.nick || NO_NAME);
 		});
 	}
-	catch
+	else gs.textContent = "Could not reach the gallery right now. Try again in a moment.";
+	if (scores.status === "fulfilled")
 	{
-		gs.textContent = "Could not reach the gallery right now. Try again in a moment.";
-	}
-	try
-	{
-		const snap = await withTimeout(DB.collection("scores").orderBy("best", "desc").limit(10).get(), 10000);
-		const rows = snap.docs.map((d) => (
+		ls.textContent = scores.value.length ? "" : "No scores yet. Survive the Endless Siege to claim the top spot!";
+		scores.value.forEach((r, i) =>
 		{
-			id: d.id,
-			v: d.data() ?? {},
-		}));
-		const names = await profileNames(rows.filter((r) => !r.v["nick"]).map((r) => r.id));
-		ls.textContent = rows.length ? "" : "No scores yet. Survive the Endless Siege to claim the top spot!";
-		rows.forEach((r, i) =>
-		{
-			scoreRow(
-				lb,
-				i,
-				firstName(str(r.v["nick"]), names[r.id]).slice(0, 24),
-				Number(r.v["best"]) | 0,
-				r.id === db.MYID,
-			);
+			scoreRow(lb, i, r.nick || NO_NAME, r.best, r.mine);
 		});
 	}
-	catch
-	{
-		ls.textContent = "Could not load scores right now.";
-	}
+	else ls.textContent = "Could not load scores right now.";
 }
-function galleryCard(gg: HTMLElement, L: GalleryLevel, by: string, mine: boolean): void
+function galleryCard(gg: HTMLElement, L: GalleryLevel, by: string): void
 {
 	const c = el("div", "gcard");
 	const cv = el("canvas");
@@ -148,7 +78,7 @@ function galleryCard(gg: HTMLElement, L: GalleryLevel, by: string, mine: boolean
 		);
 	});
 	row.appendChild(pb);
-	if (mine)
+	if (L.mine)
 	{
 		const dbtn = el("button", "btn small ghost", "Delete");
 		dbtn.addEventListener("click", (): void =>
@@ -197,27 +127,13 @@ function confirmDelete(L: GalleryLevel): void
 		{
 			try
 			{
-				const ref = db.DB!.doc(`levels/${L.owner}`);
-				const s = await ref.get();
-				if (s.exists)
-				{
-					const v =
-					{
-						...s.data(),
-					};
-					const levels: unknown = v["levels"];
-					v["levels"] = (Array.isArray(levels) ? levels : []).filter(
-						(x: unknown) => !isRecord(x) || str(x["id"]) !== L.id,
-					);
-					await ref.set(v);
-				}
+				await deleteLevel(L.id);
 				closeModal();
 				await openGallery();
 			}
 			catch
 			{
-				c.querySelector("p")!.textContent =
-					"Could not delete it. Only the level's creator or the game owner can delete levels.";
+				c.querySelector("p")!.textContent = "Could not delete it right now. Try again in a moment.";
 			}
 		});
 		mBtn(r, "Cancel", "", closeModal);

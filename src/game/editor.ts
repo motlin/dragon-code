@@ -1,5 +1,5 @@
 import {sanitizeLevel} from "../shared/level.ts";
-import {db, dbInit, withTimeout} from "./db.ts";
+import {ApiError, publishLevel} from "./api.ts";
 import {$, $as, context2d, el, later} from "./dom.ts";
 import {boardCell, drawBoard, drawDragon, drawKnight, drawTile} from "./draw.ts";
 import {type BoardState, type Facing, KTYPES, type KnightSpec, type KnightType, type Level} from "./engine.ts";
@@ -536,7 +536,6 @@ function publishResult(title: string, text: string): void
 }
 async function publishDraft(): Promise<void>
 {
-	await dbInit;
 	const d = draftOf();
 	const name = d.name.trim();
 	if (!name)
@@ -545,70 +544,47 @@ async function publishDraft(): Promise<void>
 		$("#ed-name").focus();
 		return;
 	}
-	const {DB, MYID} = db;
-	if (!DB || !MYID)
-	{
-		publishResult("Can't publish here", "Publishing needs you to be signed in to Claude while viewing this game.");
-		return;
-	}
 	modal((c) =>
 	{
 		c.appendChild(el("h2", null, "Publishing..."));
 	});
+	const {name: _name, ...data} = draftLevel();
 	try
 	{
-		const ref = DB.doc(`levels/${MYID}`);
-		const s = await withTimeout(ref.get(), 10000);
-		const v = s.exists
-			?
-				{
-					...s.data(),
-				}
-			: {};
-		const stored: unknown = v["levels"];
-		const levels: unknown[] = (Array.isArray(stored) ? stored : []).slice(-29);
-		const {name: _name, ...lv} = draftLevel();
-		levels.push(
+		await publishLevel(
 			{
-				id: `L${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`,
 				name: name.slice(0, 40),
-				created: Date.now(),
-				data: lv,
+				nick: prefs.nick.slice(0, 24),
+				data,
 			},
 		);
-		await withTimeout(
-			ref.set(
-				{
-					nick: prefs.nick.slice(0, 24),
-					levels,
-				},
-			),
-			10000,
-		);
-		d.beaten = false;
-		saveDraft();
-		renderEdSide();
-		modal((c) =>
-		{
-			c.appendChild(el("h2", null, "Published!"));
-			c.appendChild(el("p", null, `"${name}" is now in the gallery.`));
-			const r = el("div", "row");
-			mBtn(r, "See the gallery", "fire", async () =>
-			{
-				closeModal();
-				await hooks.openGallery();
-			});
-			mBtn(r, "Keep forging", "", closeModal);
-			c.appendChild(r);
-		});
 	}
-	catch
+	catch (error)
 	{
 		publishResult(
 			"Could not publish",
-			"Your access to this game may be view-only. Ask the game's owner to give you Contributor access, then try again.",
+			error instanceof ApiError && error.status === 429
+				? "You have published a lot in the last hour. Try again later."
+				: "The gallery could not be reached right now. Try again in a moment.",
 		);
+		return;
 	}
+	d.beaten = false;
+	saveDraft();
+	renderEdSide();
+	modal((c) =>
+	{
+		c.appendChild(el("h2", null, "Published!"));
+		c.appendChild(el("p", null, `"${name}" is now in the gallery.`));
+		const r = el("div", "row");
+		mBtn(r, "See the gallery", "fire", async () =>
+		{
+			closeModal();
+			await hooks.openGallery();
+		});
+		mBtn(r, "Keep forging", "", closeModal);
+		c.appendChild(r);
+	});
 }
 function stopPainting(): void
 {

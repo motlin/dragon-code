@@ -243,6 +243,14 @@ export default defineConfig(
 			},
 		},
 		plugins: [serviceWorker()],
+		// `just dev` serves the game; /api goes to `just worker` when it is running.
+		server:
+		{
+			proxy:
+			{
+				"/api": "http://127.0.0.1:8787",
+			},
+		},
 		build:
 		{
 			outDir: "dist",

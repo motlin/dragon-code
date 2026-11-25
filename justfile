@@ -12,12 +12,13 @@ export PATH := justfile_directory() / "node_modules/.bin" + ":" + env("PATH")
 install:
     pnpm install
 
-# Run the Vite dev server
+# Run the Vite dev server; /api goes to `just worker` when it is running
 dev *args: install
     vp dev {{ args }}
 
-# Build and serve dist/ on miniflare, the way Cloudflare serves it
+# Build, apply the D1 migrations locally and serve the Worker with its assets on miniflare
 worker *args: build
+    wrangler d1 migrations apply dragon-code --local
     wrangler dev {{ args }}
 
 # Run linter
@@ -65,8 +66,9 @@ test-suites: install build
 test-browser *args: build
     pnpm exec playwright test {{ args }}
 
-# Deploy dist/ to dragon-code.motlin.com
+# Apply the D1 migrations to production, then deploy the Worker to dragon-code.motlin.com
 deploy: build
+    wrangler d1 migrations apply dragon-code --remote
     pnpm run deploy
 
 # Apply safe Fallow fixes locally, then reject remaining dead code

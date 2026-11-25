@@ -1,4 +1,4 @@
-import {db, dbInit, withTimeout} from "./db.ts";
+import {deleteScore} from "./api.ts";
 import {el} from "./dom.ts";
 import {updateBestLine} from "./home.ts";
 import {openMap} from "./map.ts";
@@ -64,13 +64,8 @@ export function resetEndless(): void
 			let note = "Your Endless best is reset.";
 			try
 			{
-				await dbInit;
-				const {DB, MYID} = db;
-				if (DB && MYID)
-				{
-					await withTimeout(DB.doc(`scores/${MYID}`).delete(), 10000);
-					note += " Your Hall of Flames entry is gone too.";
-				}
+				await deleteScore();
+				note += " Your Hall of Flames entry is gone too.";
 			}
 			catch
 			{

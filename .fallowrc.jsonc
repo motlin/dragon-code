@@ -1,8 +1,9 @@
 {
 	"$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+	// src/worker/index.ts is the Worker, which wrangler.toml names as main.
 	// src/pwa/sw.ts is the service worker, which scripts/service-worker-build.ts builds by path.
 	// src/game/solver.worker.ts is the solver's Web Worker, which src/game/solver.ts starts by URL.
-	"entry": ["src/pwa/sw.ts", "src/game/solver.worker.ts", "scripts/*.ts"],
+	"entry": ["src/worker/index.ts", "src/pwa/sw.ts", "src/game/solver.worker.ts", "scripts/*.ts"],
 	// mise installs oxfmt-next-line; see .mise/config.toml.
 	"ignoreBinaries": ["oxfmt-next-line"],
 	"rules":

@@ -1,4 +1,4 @@
-import {submitScore} from "./db.ts";
+import {submitScore} from "./api.ts";
 import {el} from "./dom.ts";
 import {updateBestLine} from "./home.ts";
 import {updateHud} from "./hud.ts";
@@ -120,7 +120,16 @@ export function endlessFail(why: string): void
 			saveProgress();
 		}
 		updateBestLine();
-		void submitScore(score, prefs.nick);
+		if (score > 0)
+			submitScore(
+				{
+					best: score,
+					nick: prefs.nick.slice(0, 24),
+				},
+			).catch(() =>
+			{
+				// The best stays on this device; the Hall of Flames misses this one.
+			});
 		modal((c) =>
 		{
 			c.appendChild(el("h2", null, dname() ? `${dname()}'s siege is over` : "The siege is over"));
